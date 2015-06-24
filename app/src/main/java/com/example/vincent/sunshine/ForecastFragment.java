@@ -1,5 +1,8 @@
 package com.example.vincent.sunshine;
 
+import android.content.Context;
+import android.content.Intent;
+import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
@@ -12,6 +15,7 @@ import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.ListView;
 
@@ -26,6 +30,8 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Arrays;
 
 
 /**
@@ -37,6 +43,7 @@ public class ForecastFragment extends Fragment {
     private final String LOG_TAG = FetchWeatherTask.class.getSimpleName();
     ArrayAdapter<String> listAdapter;
     ListView mListView;
+    String zipCode;
 
     public ForecastFragment() {
     }
@@ -59,11 +66,18 @@ public class ForecastFragment extends Fragment {
         switch(id) {
             //noinspection SimplifiableIfStatement
             case R.id.action_settings:
-                return true;
+                Intent settingsIntent = new Intent(getActivity(), SettingsActivity.class);
+                startActivity(settingsIntent);
+                break;
 
             case R.id.action_refresh:
                 FetchWeatherTask refresh = new FetchWeatherTask();
-                refresh.execute("94043");
+
+                SharedPreferences sharedPreferences = getActivity().getPreferences(Context.MODE_PRIVATE);
+                String defaultVal = getString(R.string.pref_location_default);
+                zipCode = sharedPreferences.getString(getString(R.string.pref_location_key), defaultVal);
+
+                refresh.execute(zipCode);
                 return true;
         }
         return super.onOptionsItemSelected(item);
@@ -77,6 +91,46 @@ public class ForecastFragment extends Fragment {
 
         // find the ListView for the forecasts
         mListView = (ListView)rootView.findViewById(R.id.listview_forecast);
+
+        // string array of the forecast
+        String[] forecastArray = {"Today - Sunny - 88/63",
+                "Tomorrow - Sunny - 91/63",
+                "Wednesday - Sunny - 92/63",
+                "Thursday - Sunny - 93/63",
+                "Friday - Sunny - 86/63",
+                "Saturday - ZOMBIE APOCALYPSE - 86/63",
+                "Tomorrow - Sunny - 91/63",
+                "Wednesday - Sunny - 92/63",
+                "Thursday - Sunny - 93/63",
+                "Friday - Sunny - 86/63",
+                "Saturday - ZOMBIE APOCALYPSE - 86/63"};
+
+        // put the string array into an ArrayList to pass to the adapter
+        ArrayList<String> forecastList = new ArrayList<String>(Arrays.asList(forecastArray));
+
+        // create the list adapter for the forecasts
+        listAdapter = new ArrayAdapter<String>(
+                                // the current context (parent activity)
+                                getActivity(),
+                                // the layout ID to modify
+                                R.layout.list_item_forecast,
+                                // the view ID that will be accessed
+                                R.id.list_item_forecast_textview,
+                                // the forecast data that will be used
+                                forecastList);
+
+        // bind the adapter to the listview
+        mListView.setAdapter(listAdapter);
+
+        mListView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+            @Override
+            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+                String forecast = listAdapter.getItem(position).toString();
+                Intent detailIntent = new Intent(getActivity(), DetailActivity.class)
+                        .putExtra(Intent.EXTRA_TEXT, forecast );
+                startActivity(detailIntent);
+            }
+        });
 
         return rootView;
     }
@@ -244,7 +298,6 @@ public class ForecastFragment extends Fragment {
                     return null;
                 }
                 forecastJsonStr = buffer.toString();
-
             } catch (IOException e) {
                 Log.e(LOG_TAG, "Error ", e);
                 // If the code didn't successfully get the weather data, there's no point in attempting
@@ -273,20 +326,12 @@ public class ForecastFragment extends Fragment {
 
         @Override
         protected void onPostExecute(String[] strings) {
-
-            // create the list adapter for the forecasts
-            listAdapter = new ArrayAdapter<String>(
-                    // the current context (parent activity)
-                    getActivity(),
-                    // the layout ID to modify
-                    R.layout.list_item_forecast,
-                    // the view ID that will be accessed
-                    R.id.list_item_forecast_textview,
-                    // the forecast data that will be used
-                    strings);
-
-            // bind the adapter to the listview
-            mListView.setAdapter(listAdapter);
+            if(strings != null){
+                listAdapter.clear();
+                for(String forecastUpdates : strings){
+                    listAdapter.addAll(forecastUpdates);
+                }
+            }
         }
     }
 }
