@@ -1,11 +1,11 @@
 package com.example.vincent.sunshine;
 
-import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.preference.PreferenceManager;
 import android.support.v4.app.Fragment;
 import android.text.format.Time;
 import android.util.Log;
@@ -31,7 +31,6 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Arrays;
 
 
 /**
@@ -44,8 +43,45 @@ public class ForecastFragment extends Fragment {
     ArrayAdapter<String> listAdapter;
     ListView mListView;
     String zipCode;
+    boolean isImperial;
 
     public ForecastFragment() {
+    }
+
+    private double convertToFahrenheit(double temp){
+        double fTemp = temp * (9/5) + 32;
+        return fTemp;
+    }
+
+    private void updateWeather(){
+        FetchWeatherTask refresh = new FetchWeatherTask();
+
+        SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(getActivity());
+
+        String defaultVal = getString(R.string.pref_location_default);
+        String defaultTemp = getResources().getString(R.string.pref_temp_default);
+
+        zipCode = sharedPreferences.getString(getString(R.string.pref_location_key), defaultVal);
+        isImperial = sharedPreferences.getString(getString(R.string.pref_temp_key), defaultTemp)
+                .equalsIgnoreCase(defaultTemp);
+        refresh.execute(zipCode);
+    }
+
+    private void viewMap(Uri geoLocation){
+        Intent intent = new Intent(Intent.ACTION_VIEW);
+        intent.setData(geoLocation);
+        if (intent.resolveActivity(getActivity().getPackageManager()) != null) {
+            startActivity(intent);
+        } else {
+          Log.d(LOG_TAG, "Couldn't resolve intent");
+        }
+    }
+
+    @Override
+    public void onStart() {
+        super.onStart();
+        // update weather so that the new weather is displayed even if settings are modified
+        updateWeather();
     }
 
     @Override
@@ -64,21 +100,21 @@ public class ForecastFragment extends Fragment {
     public boolean onOptionsItemSelected(MenuItem item) {
         int id = item.getItemId();
         switch(id) {
-            //noinspection SimplifiableIfStatement
+            // if settings is clicked
             case R.id.action_settings:
                 Intent settingsIntent = new Intent(getActivity(), SettingsActivity.class);
                 startActivity(settingsIntent);
                 break;
-
+            // if refresh is clicked
             case R.id.action_refresh:
-                FetchWeatherTask refresh = new FetchWeatherTask();
-
-                SharedPreferences sharedPreferences = getActivity().getPreferences(Context.MODE_PRIVATE);
-                String defaultVal = getString(R.string.pref_location_default);
-                zipCode = sharedPreferences.getString(getString(R.string.pref_location_key), defaultVal);
-
-                refresh.execute(zipCode);
+                updateWeather();
                 return true;
+
+            case R.id.action_location:
+                String uri = "geo:0,0?q=" + zipCode;
+                Uri geoCode = Uri.parse(uri);
+                viewMap(geoCode);
+
         }
         return super.onOptionsItemSelected(item);
     }
@@ -92,22 +128,6 @@ public class ForecastFragment extends Fragment {
         // find the ListView for the forecasts
         mListView = (ListView)rootView.findViewById(R.id.listview_forecast);
 
-        // string array of the forecast
-        String[] forecastArray = {"Today - Sunny - 88/63",
-                "Tomorrow - Sunny - 91/63",
-                "Wednesday - Sunny - 92/63",
-                "Thursday - Sunny - 93/63",
-                "Friday - Sunny - 86/63",
-                "Saturday - ZOMBIE APOCALYPSE - 86/63",
-                "Tomorrow - Sunny - 91/63",
-                "Wednesday - Sunny - 92/63",
-                "Thursday - Sunny - 93/63",
-                "Friday - Sunny - 86/63",
-                "Saturday - ZOMBIE APOCALYPSE - 86/63"};
-
-        // put the string array into an ArrayList to pass to the adapter
-        ArrayList<String> forecastList = new ArrayList<String>(Arrays.asList(forecastArray));
-
         // create the list adapter for the forecasts
         listAdapter = new ArrayAdapter<String>(
                                 // the current context (parent activity)
@@ -117,7 +137,7 @@ public class ForecastFragment extends Fragment {
                                 // the view ID that will be accessed
                                 R.id.list_item_forecast_textview,
                                 // the forecast data that will be used
-                                forecastList);
+                                new ArrayList<String>());
 
         // bind the adapter to the listview
         mListView.setAdapter(listAdapter);
@@ -154,10 +174,19 @@ public class ForecastFragment extends Fragment {
          */
         private String formatHighLows(double high, double low) {
             // For presentation, assume the user doesn't care about tenths of a degree.
-            long roundedHigh = Math.round(high);
-            long roundedLow = Math.round(low);
+            String highLowStr;
+            if(isImperial){
+                long roundedHigh = Math.round(convertToFahrenheit(high));
+                long roundedLow = Math.round(convertToFahrenheit(low));
 
-            String highLowStr = roundedHigh + "/" + roundedLow;
+                highLowStr = roundedHigh + "/" + roundedLow;
+            }
+            else {
+                long roundedHigh = Math.round(high);
+                long roundedLow = Math.round(low);
+
+                highLowStr = roundedHigh + "/" + roundedLow;
+            }
             return highLowStr;
         }
 
@@ -268,6 +297,7 @@ public class ForecastFragment extends Fragment {
                         .appendQueryParameter(FORMAT_PARAM, format)
                         .appendQueryParameter(MODE_PARAM, units)
                         .appendQueryParameter(COUNT_PARAM, Integer.toString(numDays)).build();
+
 
                 URL url = new URL(userURI.toString());
 
