@@ -4,7 +4,8 @@
           android:name="com.example.vincent.sunshine.ForecastFragment"
           tools:layout="@layout/fragment_main"
           android:layout_width="match_parent"
-          android:layout_height="match_parent"/>
+          android:layout_height="match_parent"
+    />
 
 
 
